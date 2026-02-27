@@ -72,7 +72,7 @@ alpha = 0.2
 kp_dist = 0.3
 max_yaw_rate = 0.4
 max_vx = 1.0
-arrival_radius = 0.2
+arrival_radius = 0.1
 
 
 # ================= 工具函数 =================
@@ -259,9 +259,9 @@ def task_zed():
                     dy_zed = ty - zed_ref_ty
 
                     # 旋转到UTM坐标系
-                    # ZED RIGHT_HANDED_Z_UP: X=前向, Y=左方
+                    # ZED RIGHT_HANDED_Z_UP: X=左方, Y=前向
                     # 启动时相机朝向 H₀=zed_calibration_offset（真北顺时针）
-                    # ZED X轴 → 方位H₀方向; ZED Y轴 → H₀左偏90°方向
+                    # ZED Y轴 → 方位H₀方向; ZED X轴 → H₀左偏90°方向
                     # dE = dx_zed*sin(H₀) - dy_zed*cos(H₀)
                     # dN = dx_zed*cos(H₀) + dy_zed*sin(H₀)
                     theta = math.radians(zed_calibration_offset - 90)
