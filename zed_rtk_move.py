@@ -69,10 +69,10 @@ zed_ref_ty = None
 
 # ================= 控制参数 =================
 alpha = 0.2
-kp_dist = 0.3
+kp_dist = 0.9
 max_yaw_rate = 0.4
 max_vx = 1.0
-arrival_radius = 0.1
+arrival_radius = 0.2
 
 
 # ================= 工具函数 =================
@@ -118,7 +118,8 @@ def get_rtk_location():
             'lon': lon,
             'lat': lat,
             'quality': gga_quality,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'heading': zed_calibrated_heading
         })
     else:
         return jsonify({'error': 'RTK data not available'}), 503
@@ -259,9 +260,9 @@ def task_zed():
                     dy_zed = ty - zed_ref_ty
 
                     # 旋转到UTM坐标系
-                    # ZED RIGHT_HANDED_Z_UP: X=左方, Y=前向
+                    # ZED RIGHT_HANDED_Z_UP: X=前向, Y=左方
                     # 启动时相机朝向 H₀=zed_calibration_offset（真北顺时针）
-                    # ZED Y轴 → 方位H₀方向; ZED X轴 → H₀左偏90°方向
+                    # ZED X轴 → 方位H₀方向; ZED Y轴 → H₀左偏90°方向
                     # dE = dx_zed*sin(H₀) - dy_zed*cos(H₀)
                     # dN = dx_zed*cos(H₀) + dy_zed*sin(H₀)
                     theta = math.radians(zed_calibration_offset - 90)
@@ -667,7 +668,7 @@ if __name__ == "__main__":
     for i, (x, y) in enumerate(waypoints):
         print(f"\n>>> 前往航点 {i + 1}/{len(waypoints)}  目标:({x:.2f}, {y:.2f})")
         navigate_to(x, y, sport_client)
-        time.sleep(3)
+        time.sleep(0.1)
 
     # ==========================
     # 自动返航
