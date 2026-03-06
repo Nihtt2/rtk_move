@@ -4,6 +4,7 @@
 import sys
 import time
 import math
+import signal
 
 import cv2
 import numpy as np
@@ -33,6 +34,15 @@ CHARGER_BACK_OFFSET = CHARGER_LENGTH / 2.0
 
 #修正系数
 BASELINE = 0.115
+
+# 用于 Ctrl+C 优雅退出的全局标志
+shutdown_requested = False
+
+
+def _signal_handler(signum, frame):
+    global shutdown_requested
+    shutdown_requested = True
+    print("\n收到中断信号，正在退出... (请稍候)")
 
 
 def init_zed_camera():
@@ -122,14 +132,16 @@ def select_best_detection(detections):
     )
 
 
-def follow_apriltag(zed: sl.Camera, sport_client: SportClient, detector: Detector, camera_params, tag_size: float):
+def follow_apriltag(zed: sl.Camera, sport_client: SportClient, detector: Detector, camera_params, tag_size: float) -> bool:
     """
     让机械狗自动靠近并正对 AprilTag：
       - 向右为 X+，向前为 Z+，向上为 Y+
       - 根据 tx、tz 做简单的 P 控制前进与转向
       - 最终距离接近 target_dist 且 yaw 误差很小则停止
+    返回 True 表示到达并成功充电位，False 表示用户中断或异常退出。
     """
     image = sl.Mat()
+    charging_success = False  # 是否因到达充电位而退出
 
 # ================= Matplotlib 可视化初始化（Tag 固定，狗相对运动） =================
     plt.ion()
@@ -228,10 +240,13 @@ def follow_apriltag(zed: sl.Camera, sport_client: SportClient, detector: Detecto
     search_yaw = 0.3         # 丢失目标时的原地自转角速度（rad/s）
     last_seen_time = 0.0
 
-    print("开始 AprilTag 跟随控制，按 q 退出。")
+    print("开始 AprilTag 跟随控制，按 q 退出。按 Ctrl+C 亦可退出。")
 
     try:
         while True:
+            if shutdown_requested:
+                print("退出标志已置位，停止跟随。")
+                break
             if zed.grab() != sl.ERROR_CODE.SUCCESS:
                 continue
 
@@ -363,6 +378,8 @@ def follow_apriltag(zed: sl.Camera, sport_client: SportClient, detector: Detecto
                         (0, 255, 255),
                         2,
                     )
+                    charging_success = True
+                    break  # 到达充电位，退出循环并结束程序
                 else:
                     # 转向控制：优先用“法向偏航误差”让视线垂直 Tag 平面
                     # SportClient.Move 中正角速度为左转，因此想向右转时取负号。
@@ -503,13 +520,23 @@ def follow_apriltag(zed: sl.Camera, sport_client: SportClient, detector: Detecto
     finally:
         sport_client.StopMove()
         cv2.destroyAllWindows()
+        plt.close(fig)
+        plt.ioff()
+
+    return charging_success
 
 
 def main():
+    global shutdown_requested
     if len(sys.argv) < 2:
         print(f"用法: python3 {sys.argv[0]} <networkInterface>")
         print("例如: python3 rtk_apriltag_follow.py eno1")
         sys.exit(1)
+
+    # 注册 Ctrl+C 处理，便于优雅退出
+    signal.signal(signal.SIGINT, _signal_handler)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, _signal_handler)
 
     network_interface = sys.argv[1]
 
@@ -517,13 +544,23 @@ def main():
     sport_client = init_sport_client(network_interface)
     zed = init_zed_camera()
     detector, camera_params, tag_size = init_apriltag_detector(zed)
+    # sport_client.ClassicWalk(true)
 
     try:
-        follow_apriltag(zed, sport_client, detector, camera_params, tag_size)
+        success = follow_apriltag(zed, sport_client, detector, camera_params, tag_size)
+        if success:
+            print("成功充电。")
+            sys.exit(0)
+    except KeyboardInterrupt:
+        print("\n键盘中断，退出。")
+        shutdown_requested = True
     finally:
         zed.close()
+        print("已关闭 ZED 相机，程序结束。")
+    sys.exit(1)  # 非“到达充电位”退出
 
 
 if __name__ == "__main__":
     main()
+
 
