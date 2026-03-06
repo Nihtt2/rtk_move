@@ -18,6 +18,8 @@ auto_charge.py 精准定位apriltag码进行自动充电
 
 config.json ip以及websocket的端口的配置文件
 
+auto_charge 自动对准apriltag码进行充电
+
 #注意
 
 实际使用时根据串口实际名称调整串口
